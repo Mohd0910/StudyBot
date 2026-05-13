@@ -1,22 +1,51 @@
 import os
+import json
+import time
+from datetime import date
+
+from dotenv import load_dotenv
+from groq import Groq
 from telegram import Update, LabeledPrice
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
     MessageHandler,
     PreCheckoutQueryHandler,
-    filters,
     ContextTypes,
+    filters,
 )
-from groq import Groq
-from dotenv import load_dotenv
 
 load_dotenv()
 
-client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-usage = {}
-paid_users = set()
+client = Groq(api_key=GROQ_API_KEY)
+
+USAGE_FILE = "usage.json"
+PAID_FILE = "paid_users.json"
+
+
+def load_json(file, default):
+    try:
+        with open(file, "r") as f:
+            return json.load(f)
+    except:
+        return default
+
+
+def save_json(file, data):
+    with open(file, "w") as f:
+        json.dump(data, f)
+
+
+usage = load_json(USAGE_FILE, {})
+paid_users = load_json(PAID_FILE, {})
+
+
+def is_paid(uid):
+    uid = str(uid)
+    return uid in paid_users and paid_users[uid] > time.time()
 
 
 async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -45,21 +74,29 @@ async def pre_checkout(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def paid(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id
-    paid_users.add(uid)
+    uid = str(update.effective_user.id)
+
+    # 30 days premium
+    paid_users[uid] = time.time() + (30 * 24 * 60 * 60)
+    save_json(PAID_FILE, paid_users)
 
     await update.message.reply_text(
-        "✅ Payment received! You now have unlimited access."
+        "✅ Payment received! You now have unlimited access for 30 days!"
     )
 
 
 async def handle(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id
+    uid = str(update.effective_user.id)
+    today = str(date.today())
 
-    if uid not in paid_users:
-        usage[uid] = usage.get(uid, 0) + 1
+    if uid not in usage or usage[uid].get("date") != today:
+        usage[uid] = {"date": today, "count": 0}
 
-        if usage[uid] > 10:
+    if not is_paid(uid):
+        usage[uid]["count"] += 1
+        save_json(USAGE_FILE, usage)
+
+        if usage[uid]["count"] > 10:
             await update.message.reply_text(
                 "You've used your 10 free messages today!\n"
                 "Type /upgrade for unlimited access."
@@ -80,7 +117,7 @@ async def handle(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(response.choices[0].message.content)
 
 
-app = ApplicationBuilder().token(os.getenv("TELEGRAM_TOKEN")).build()
+app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("upgrade", upgrade))
