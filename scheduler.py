@@ -1,8 +1,3 @@
-"""
-scheduler.py — StudyBot daily auto-marketing
-Runs as a SECOND Railway service beside bot.py.
-"""
-
 import os
 import asyncio
 import schedule
@@ -22,7 +17,11 @@ load_dotenv()
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-YOUR_CHANNEL = os.getenv("YOUR_CHANNEL", "@StudySnapUpdates")
+
+# FIXED: your channel is @StudyBotUpdates
+YOUR_CHANNEL = os.getenv("YOUR_CHANNEL", "@StudyBotUpdates")
+
+# Put your REAL bot username in Railway variables
 BOT_USERNAME = os.getenv("BOT_USERNAME", "@StudyBot")
 
 TWITTER_API_KEY = os.getenv("TWITTER_API_KEY")
@@ -81,7 +80,7 @@ def generate_video_script():
 الشروط:
 - مدة 15 ثانية
 - مناسب لطلاب السعودية
-- اجعله قابل للتصوير بالجوال
+- قابل للتصوير بالجوال
 - لا تدّعي نتائج مبالغ فيها
 - استخدم هذا الشكل فقط:
 
@@ -105,7 +104,7 @@ Rules:
 - Max 240 characters
 - Mention {BOT_USERNAME}
 - 2 hashtags only
-- No hype scam language
+- No scammy hype
 - Direct tweet only
 """, max_tokens=120)
 
@@ -114,12 +113,9 @@ async def post_to_telegram(text):
     try:
         bot = telegram.Bot(token=TELEGRAM_TOKEN)
 
-        if str(YOUR_CHANNEL).startswith("-100"):
-            chat_id = YOUR_CHANNEL
-        else:
-            chat = await bot.get_chat(YOUR_CHANNEL)
-            chat_id = chat.id
-            print(f"[{now()}] Resolved channel ID: {chat_id}")
+        chat = await bot.get_chat(YOUR_CHANNEL)
+        chat_id = chat.id
+        print(f"[{now()}] Resolved channel ID: {chat_id}")
 
         await bot.send_message(chat_id=chat_id, text=text)
         print(f"[{now()}] Telegram posted OK")
@@ -186,11 +182,13 @@ def main():
     print(f"Channel: {YOUR_CHANNEL}")
     print(f"Bot: {BOT_USERNAME}")
 
+    # Railway uses UTC time usually
     schedule.every().day.at("12:00").do(job_midday_reminder)
     schedule.every().day.at("15:00").do(job_video_script)
     schedule.every().day.at("17:00").do(job_twitter)
     schedule.every().day.at("18:00").do(job_daily_arabic)
 
+    # Instant test on startup
     asyncio.run(post_to_telegram(
         f"✅ Scheduler started!\n\nDaily AI posts are now active.\n{BOT_USERNAME}"
     ))
