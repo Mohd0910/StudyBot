@@ -1,3 +1,5 @@
 python-telegram-bot[job-queue]
 groq
 python-dotenv
+schedule
+tweepy
