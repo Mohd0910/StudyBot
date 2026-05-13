@@ -18,16 +18,16 @@ load_dotenv()
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-# FIXED: your channel is @StudyBotUpdates
 YOUR_CHANNEL = os.getenv("YOUR_CHANNEL", "@StudyBotUpdates")
-
-# Put your REAL bot username in Railway variables
-BOT_USERNAME = os.getenv("BOT_USERNAME", "@StudyBot")
+BOT_USERNAME = os.getenv("BOT_USERNAME", "@Studysnapaibot")
+GROUP_CHAT_IDS = os.getenv("GROUP_CHAT_IDS", "")
 
 TWITTER_API_KEY = os.getenv("TWITTER_API_KEY")
 TWITTER_API_SECRET = os.getenv("TWITTER_API_SECRET")
 TWITTER_ACCESS_TOKEN = os.getenv("TWITTER_ACCESS_TOKEN")
 TWITTER_ACCESS_SECRET = os.getenv("TWITTER_ACCESS_SECRET")
+
+MODEL = "llama-3.1-8b-instant"
 
 groq_client = Groq(api_key=GROQ_API_KEY)
 
@@ -38,9 +38,10 @@ def now():
 
 def ai(prompt, max_tokens=350):
     response = groq_client.chat.completions.create(
-        model="llama3-8b-8192",
+        model=MODEL,
         messages=[{"role": "user", "content": prompt}],
         max_tokens=max_tokens,
+        temperature=0.7,
     )
     return response.choices[0].message.content.strip()
 
@@ -54,79 +55,88 @@ def generate_arabic_post():
         "كيف تستخدم الذكاء الاصطناعي في الدراسة",
         "طريقة البومودورو للطلاب",
         "كيف ترتب وقتك بين المواد",
+        "كيف تراجع بدون توتر",
+        "كيف تذاكر الرياضيات بذكاء",
+        "كيف توقف التسويف",
     ]
 
     topic = random.choice(topics)
 
     return ai(f"""
-اكتب منشور تيليجرام عربي عن: {topic}
+اكتب منشور تيليجرام عربي مفيد عن: {topic}
 
 الشروط:
-- 80 إلى 120 كلمة
 - مناسب لطلاب السعودية
-- بداية جذابة
+- 80 إلى 140 كلمة
+- مفيد فعلاً
+- بدون مبالغة
 - لا تذكر السعر
-- اذكر StudyBot بشكل طبيعي في النهاية
-- اختم بـ {BOT_USERNAME}
-- استخدم 2-3 إيموجي فقط
-اكتب المنشور مباشرة.
+- اذكر {BOT_USERNAME} بشكل طبيعي في النهاية
+- 2 إلى 3 إيموجي
 """)
 
 
 def generate_video_script():
     return ai(f"""
-اكتب فكرة فيديو تيك توك/ريلز قصيرة للترويج لـ StudyBot.
+اكتب فكرة فيديو قصيرة للترويج لـ StudyBot.
 
 الشروط:
-- مدة 15 ثانية
-- مناسب لطلاب السعودية
-- قابل للتصوير بالجوال
-- لا تدّعي نتائج مبالغ فيها
-- استخدم هذا الشكل فقط:
+- 15 ثانية
+- مناسبة لطلاب السعودية
+- قابلة للتصوير بالجوال
+- لا وعود مبالغ فيها
+- استخدم هذا الشكل:
 
 🎬 فكرة فيديو اليوم
-
 Hook:
 Scene:
 Text on screen:
 Voiceover:
 CTA:
 
-اختم بذكر {BOT_USERNAME}
+اختم بـ {BOT_USERNAME}
 """, max_tokens=450)
 
 
 def generate_tweet():
     return ai(f"""
-Write a Twitter/X post for students about studying smarter with AI.
+Write a tweet for students about studying smarter.
 
 Rules:
-- Max 240 characters
-- Mention {BOT_USERNAME}
-- 2 hashtags only
-- No scammy hype
-- Direct tweet only
+- under 240 chars
+- mention {BOT_USERNAME}
+- 2 hashtags max
+- no hype scam language
 """, max_tokens=120)
 
 
-async def post_to_telegram(text):
+async def post_to_chat(text, target):
     try:
         bot = telegram.Bot(token=TELEGRAM_TOKEN)
 
-        chat = await bot.get_chat(YOUR_CHANNEL)
-        chat_id = chat.id
-        print(f"[{now()}] Resolved channel ID: {chat_id}")
+        if str(target).startswith("-100"):
+            chat_id = target
+        else:
+            chat = await bot.get_chat(target)
+            chat_id = chat.id
 
         await bot.send_message(chat_id=chat_id, text=text)
-        print(f"[{now()}] Telegram posted OK")
+        print(f"[{now()}] Posted to {target}")
 
     except Exception as e:
-        print(f"[{now()}] Telegram error: {e}")
+        print(f"[{now()}] Telegram error for {target}: {e}")
+
+
+async def broadcast(text):
+    await post_to_chat(text, YOUR_CHANNEL)
+
+    groups = [g.strip() for g in GROUP_CHAT_IDS.split(",") if g.strip()]
+    for group in groups:
+        await post_to_chat(text, group)
 
 
 def post_to_twitter(text):
     if tweepy is None:
-        print(f"[{now()}] Twitter skipped — tweepy not installed")
         return
 
     if not all([
@@ -135,7 +145,6 @@ def post_to_twitter(text):
         TWITTER_ACCESS_TOKEN,
         TWITTER_ACCESS_SECRET,
     ]):
-        print(f"[{now()}] Twitter skipped — missing credentials")
         return
 
     try:
@@ -146,51 +155,60 @@ def post_to_twitter(text):
             access_token_secret=TWITTER_ACCESS_SECRET,
         )
         client.create_tweet(text=text[:280])
-        print(f"[{now()}] Twitter posted OK")
+        print(f"[{now()}] Twitter posted")
 
     except Exception as e:
         print(f"[{now()}] Twitter error: {e}")
 
 
-def job_midday_reminder():
+def promo_post():
+    text = (
+        "📚 عندك واجب؟ اختبار؟ شرح صعب؟\n\n"
+        "StudyBot يساعدك في:\n"
+        "✅ شرح الدروس\n"
+        "✅ تلخيص النصوص\n"
+        "✅ ترجمة عربي ↔ English\n"
+        "✅ إجابات سريعة وواضحة\n\n"
+        f"جرّبه هنا 👇\n{BOT_USERNAME}"
+    )
+    asyncio.run(broadcast(text))
+
+
+def reminder_post():
     reminders = [
-        f"📚 وقت المذاكرة!\n\nإذا عندك سؤال أو نص تبي تلخصه — {BOT_USERNAME} جاهز يساعدك فوراً ✅",
-        f"🤖 تعبت من البحث؟\n\nاكتب سؤالك في {BOT_USERNAME} وخذ إجابة واضحة بسرعة.",
-        f"💡 نصيحة اليوم: لخص الدرس قبل الحفظ.\n\n{BOT_USERNAME} يساعدك تلخص وتفهم أسرع ✅",
+        f"📚 وقت المذاكرة! إذا علقت في أي سؤال — {BOT_USERNAME}",
+        f"💡 اختصر وقت البحث، اسأل {BOT_USERNAME}",
+        f"🧠 المذاكرة الذكية أهم من المذاكرة الطويلة — {BOT_USERNAME}",
     ]
-
-    asyncio.run(post_to_telegram(random.choice(reminders)))
-
-
-def job_daily_arabic():
-    print(f"[{now()}] Running Arabic post...")
-    asyncio.run(post_to_telegram(generate_arabic_post()))
+    asyncio.run(broadcast(random.choice(reminders)))
 
 
-def job_video_script():
-    print(f"[{now()}] Running video script...")
-    asyncio.run(post_to_telegram(generate_video_script()))
+def ai_study_post():
+    asyncio.run(broadcast(generate_arabic_post()))
 
 
-def job_twitter():
-    print(f"[{now()}] Running Twitter post...")
+def ai_video_post():
+    asyncio.run(broadcast(generate_video_script()))
+
+
+def twitter_post():
     post_to_twitter(generate_tweet())
 
 
 def main():
-    print(f"[{now()}] Scheduler started ✅")
+    print(f"[{now()}] Scheduler started")
     print(f"Channel: {YOUR_CHANNEL}")
     print(f"Bot: {BOT_USERNAME}")
 
-    # Railway uses UTC time usually
-    schedule.every().day.at("12:00").do(job_midday_reminder)
-    schedule.every().day.at("15:00").do(job_video_script)
-    schedule.every().day.at("18:00").do(job_daily_arabic)
-
-    # Instant test on startup
-    asyncio.run(post_to_telegram(
-        f"✅ Scheduler started!\n\nDaily AI posts are now active.\n{BOT_USERNAME}"
+    asyncio.run(broadcast(
+        f"✅ Scheduler started!\nDaily AI marketing active.\n{BOT_USERNAME}"
     ))
+
+    schedule.every().day.at("09:00").do(ai_study_post)
+    schedule.every().day.at("12:00").do(reminder_post)
+    schedule.every().day.at("15:00").do(ai_video_post)
+    schedule.every().day.at("17:00").do(twitter_post)
+    schedule.every().day.at("18:00").do(promo_post)
 
     while True:
         schedule.run_pending()
