@@ -1,12 +1,6 @@
 """
 scheduler.py — StudyBot daily auto-marketing
 Runs as a SECOND Railway service beside bot.py.
-
-Posts:
-- Telegram channel daily reminders
-- AI Arabic study posts
-- AI TikTok/Reels video script ideas
-- Optional Twitter/X posts if keys are added
 """
 
 import os
@@ -62,6 +56,7 @@ def generate_arabic_post():
         "طريقة البومودورو للطلاب",
         "كيف ترتب وقتك بين المواد",
     ]
+
     topic = random.choice(topics)
 
     return ai(f"""
@@ -118,8 +113,17 @@ Rules:
 async def post_to_telegram(text):
     try:
         bot = telegram.Bot(token=TELEGRAM_TOKEN)
-        await bot.send_message(chat_id=YOUR_CHANNEL, text=text)
+
+        if str(YOUR_CHANNEL).startswith("-100"):
+            chat_id = YOUR_CHANNEL
+        else:
+            chat = await bot.get_chat(YOUR_CHANNEL)
+            chat_id = chat.id
+            print(f"[{now()}] Resolved channel ID: {chat_id}")
+
+        await bot.send_message(chat_id=chat_id, text=text)
         print(f"[{now()}] Telegram posted OK")
+
     except Exception as e:
         print(f"[{now()}] Telegram error: {e}")
 
@@ -129,7 +133,12 @@ def post_to_twitter(text):
         print(f"[{now()}] Twitter skipped — tweepy not installed")
         return
 
-    if not all([TWITTER_API_KEY, TWITTER_API_SECRET, TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_SECRET]):
+    if not all([
+        TWITTER_API_KEY,
+        TWITTER_API_SECRET,
+        TWITTER_ACCESS_TOKEN,
+        TWITTER_ACCESS_SECRET,
+    ]):
         print(f"[{now()}] Twitter skipped — missing credentials")
         return
 
@@ -142,6 +151,7 @@ def post_to_twitter(text):
         )
         client.create_tweet(text=text[:280])
         print(f"[{now()}] Twitter posted OK")
+
     except Exception as e:
         print(f"[{now()}] Twitter error: {e}")
 
@@ -152,6 +162,7 @@ def job_midday_reminder():
         f"🤖 تعبت من البحث؟\n\nاكتب سؤالك في {BOT_USERNAME} وخذ إجابة واضحة بسرعة.",
         f"💡 نصيحة اليوم: لخص الدرس قبل الحفظ.\n\n{BOT_USERNAME} يساعدك تلخص وتفهم أسرع ✅",
     ]
+
     asyncio.run(post_to_telegram(random.choice(reminders)))
 
 
@@ -177,10 +188,9 @@ def main():
 
     schedule.every().day.at("12:00").do(job_midday_reminder)
     schedule.every().day.at("15:00").do(job_video_script)
-    schedule.every().day.at("18:00").do(job_daily_arabic)
     schedule.every().day.at("17:00").do(job_twitter)
+    schedule.every().day.at("18:00").do(job_daily_arabic)
 
-    # Startup test
     asyncio.run(post_to_telegram(
         f"✅ Scheduler started!\n\nDaily AI posts are now active.\n{BOT_USERNAME}"
     ))
