@@ -185,7 +185,6 @@ def main():
     # Railway uses UTC time usually
     schedule.every().day.at("12:00").do(job_midday_reminder)
     schedule.every().day.at("15:00").do(job_video_script)
-    schedule.every().day.at("17:00").do(job_twitter)
     schedule.every().day.at("18:00").do(job_daily_arabic)
 
     # Instant test on startup
